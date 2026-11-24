@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("USER")
+  bio          String?
+  avatarUrl    String?
+  coverUrl     String?
+  isBanned     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  posts            Post[]
+  comments         Comment[]
+  commentReactions CommentReaction[]
+  sentInvites      Invite[]          @relation("SentInvites")
+  receivedInvite   Invite?           @relation("ReceivedInvite")
+  sentFriends      Friendship[]      @relation("Requester")
+  receivedFriends  Friendship[]      @relation("Addressee")
+  reactions        Reaction[]
+  messagesSent     Message[]         @relation("SentMessages")
+  messagesReceived Message[]         @relation("ReceivedMessages")
+  messageReactions MessageReaction[]
+  notifications    Notification[]
+  postMedia        PostMedia[]
+
+  stories    Story[]     @relation("StoryAuthor")
+  storyViews StoryView[]
+}
+
+model Invite {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  createdById Int
+  createdBy   User     @relation("SentInvites", fields: [createdById], references: [id])
+  usedById    Int?     @unique
+  usedBy      User?    @relation("ReceivedInvite", fields: [usedById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Friendship {
+  id          Int      @id @default(autoincrement())
+  requesterId Int
+  requester   User     @relation("Requester", fields: [requesterId], references: [id])
+  addresseeId Int
+  addressee   User     @relation("Addressee", fields: [addresseeId], references: [id])
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+}
+
+model Post {
+  id               Int       @id @default(autoincrement())
+  content          String
+  imageUrl         String?
+  privacy          String    @default("FRIENDS")
+  authorId         Int
+  author           User      @relation(fields: [authorId], references: [id])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  isEdited         Boolean   @default(false)
+  sharedPostId     Int?
+  sharedPost       Post?     @relation("SharedPosts", fields: [sharedPostId], references: [id], onDelete: SetNull)
+  shares           Post[]    @relation("SharedPosts")
+  sharedInMessages Message[] @relation("SharedPostMessages")
+
+  media     PostMedia[]
+  comments  Comment[]
+  reactions Reaction[]
+
+  @@index([authorId, createdAt])
+  @@index([privacy, createdAt])
+  @@index([sharedPostId])
+}
+
+model PostMedia {
+  id           Int    @id @default(autoincrement())
+  url          String
+  originalName String
+  mimeType     String
+  fileSize     Int
+  mediaType    String
+  position     Int    @default(0)
+
+  postId Int
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  uploadedById Int
+  uploadedBy   User @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([postId, position])
+  @@index([uploadedById])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  // Respuestas a comentarios
+  parentCommentId Int?
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+
+  // Reacciones
+  reactions CommentReaction[]
+
+  @@index([postId, createdAt])
+  @@index([parentCommentId, createdAt])
+}
+
+model CommentReaction {
+  id        Int      @id @default(autoincrement())
+  type      String   @default("LIKE")
+  commentId Int
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, userId])
+  @@index([userId])
+}
+
+model Reaction {
+  id        Int      @id @default(autoincrement())
+  type      String   @default("LIKE")
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  content    String
+  senderId   Int
+  receiverId Int
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  // Estado de lectura
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // Mensaje de "Ver una vez" (estilo WhatsApp ①)
+  isViewOnce Boolean   @default(false)
+  viewedAt   DateTime?
+
+  // Responder a un mensaje anterior (Reply)
+  replyToId Int?
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  // Eliminar para mí / para todos
+  deletedForAll      Boolean @default(false)
+  deletedForSender   Boolean @default(false)
+  deletedForReceiver Boolean @default(false)
+
+  // Reacciones en mensajes
+  reactions MessageReaction[]
+
+  media        MessageMedia[]
+  sharedPostId Int?
+  sharedPost   Post?          @relation("SharedPostMessages", fields: [sharedPostId], references: [id], onDelete: SetNull)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, isRead, createdAt])
+  @@index([sharedPostId])
+  @@index([replyToId])
+}
+
+model MessageReaction {
+  id        Int      @id @default(autoincrement())
+  emoji     String
+  messageId Int
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+}
+
+model MessageMedia {
+  id           Int      @id @default(autoincrement())
+  url          String
+  originalName String
+  mimeType     String
+  fileSize     Int
+  mediaType    String
+  position     Int      @default(0)
+  messageId    Int
+  message      Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([messageId, position])
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  type        String
+  content     String
+  isRead      Boolean  @default(false)
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedId   Int?
+  relatedType String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, isRead, createdAt])
+}
+
+model Story {
+  id           Int    @id @default(autoincrement())
+  caption      String?
+  url          String
+  originalName String
+  mimeType     String
+  fileSize     Int
+  mediaType    String
+
+  // Música de la historia
+  musicUrl       String?
+  musicTitle     String?
+  musicArtist    String?
+  musicCover     String?
+  musicStartTime Int?
+
+  authorId  Int
+  author    User        @relation("StoryAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  views     StoryView[]
+  createdAt DateTime    @default(now())
+  expiresAt DateTime
+
+  @@index([authorId, expiresAt])
+  @@index([expiresAt])
+}
+
+model StoryView {
+  id       Int      @id @default(autoincrement())
+  storyId  Int
+  story    Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  userId   Int
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewedAt DateTime @default(now())
+
+  @@unique([storyId, userId])
+  @@index([userId, viewedAt])
+}
