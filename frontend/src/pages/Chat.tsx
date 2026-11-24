@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import toast from "react-hot-toast";
 import { useCall } from "../context/CallContext";
+import { SOCKET_URL } from "../lib/socketUrl";
 
 interface ChatUser {
   id: number;
@@ -91,7 +92,6 @@ interface Message {
   sharedPost?: SharedPostPreview | null;
 }
 
-const SOCKET_URL = "http://localhost:4000";
 const MAX_FILES = 10;
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥"];
@@ -1637,7 +1637,7 @@ export default function Chat() {
               <button
                 type="button"
                 onClick={() => setDeleteModalMessage(null)}
-                className="w-full py-2.5 px-4 rounded-xl hover:bg-[#253341]/60 text-gray-400 font-semibold text-sm text-right transition"
+                className="w-full py-2.5 px-4 rounded-xl hover:bg-[#253341]/60 text-gray-300 font-medium text-sm text-right transition"
               >
                 Cancelar
               </button>
@@ -1647,38 +1647,51 @@ export default function Chat() {
       )}
 
       {/* ==========================================
-          VISOR DE MENSAJE DE "VER UNA VEZ" (①)
+          MODAL: CONTENIDO "VER UNA VEZ" (①)
          ========================================== */}
       {viewingOnceData && (
         <div
-          className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
           onClick={() => setViewingOnceData(null)}
         >
           <div
-            className="max-w-lg w-full bg-[#192734] border border-[#38444d] rounded-2xl p-5 text-white shadow-2xl"
+            className="w-full max-w-md bg-[#192734] border border-[#38444d] rounded-2xl p-5 shadow-2xl text-white"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#38444d] pb-3 mb-4">
-              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                <span>①</span> Mensaje de {viewingOnceData.senderName} · Solo
-                visible una vez
-              </span>
+            <div className="flex items-center justify-between pb-3 border-b border-[#38444d]">
+              <div>
+                <h3 className="text-sm font-bold text-emerald-400">
+                  ① Mensaje para ver una vez
+                </h3>
+                <p className="text-xs text-gray-400">
+                  De {viewingOnceData.senderName} · Se ocultará al cerrar
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setViewingOnceData(null)}
-                className="text-gray-400 hover:text-white text-sm font-bold px-2"
+                className="w-8 h-8 rounded-full bg-[#253341] hover:bg-[#304253] text-gray-200 flex items-center justify-center text-sm"
               >
-                ✕ Cerrar
+                ✕
               </button>
             </div>
 
-            {viewingOnceData.content && (
-              <p className="text-base whitespace-pre-wrap wrap-break-word mb-3">
-                {viewingOnceData.content}
-              </p>
-            )}
+            <div className="mt-4 space-y-3 max-h-[65vh] overflow-y-auto">
+              {viewingOnceData.content && (
+                <p className="whitespace-pre-wrap wrap-break-word text-sm bg-[#15202b] p-3.5 rounded-xl border border-[#38444d]">
+                  {viewingOnceData.content}
+                </p>
+              )}
+              {renderMedia(viewingOnceData.media || [])}
+            </div>
 
-            {renderMedia(viewingOnceData.media || [])}
+            <button
+              type="button"
+              onClick={() => setViewingOnceData(null)}
+              className="mt-5 w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 font-bold text-sm transition"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}

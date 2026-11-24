@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import { api } from '../api/client';
-import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { useCallback, useEffect, useState } from "react";
+import { io } from "socket.io-client";
+import { api } from "../api/client";
+import { useNavigate } from "react-router-dom";
+import { SOCKET_URL } from "../lib/socketUrl";
+import toast from "react-hot-toast";
 
 interface Notification {
   id: number;
@@ -15,7 +16,7 @@ interface Notification {
   relatedType?: string | null;
 }
 
-type FriendAction = 'accept' | 'reject';
+type FriendAction = "accept" | "reject";
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -27,22 +28,22 @@ export default function Notifications() {
   // Cargar notificaciones desde la base de datos
   const loadNotifications = useCallback(async () => {
     try {
-      const response = await api.get('/notifications');
+      const response = await api.get("/notifications");
 
       const incoming: Notification[] = Array.isArray(response.data)
         ? response.data
         : [];
 
-      setNotifications(current => {
+      setNotifications((current) => {
         const combined = new Map<number, Notification>();
 
-        incoming.forEach(item => {
+        incoming.forEach((item) => {
           combined.set(item.id, item);
         });
 
         // Conservar notificaciones recibidas por Socket.IO
         // que todavía no estén en la respuesta del servidor.
-        current.forEach(item => {
+        current.forEach((item) => {
           if (!combined.has(item.id)) {
             combined.set(item.id, item);
           }
@@ -50,13 +51,12 @@ export default function Notifications() {
 
         return Array.from(combined.values()).sort(
           (a, b) =>
-            new Date(b.createdAt).getTime() -
-            new Date(a.createdAt).getTime()
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
       });
     } catch (error) {
-      console.error('Error al cargar notificaciones:', error);
-      toast.error('No se pudieron cargar las notificaciones');
+      console.error("Error al cargar notificaciones:", error);
+      toast.error("No se pudieron cargar las notificaciones");
     } finally {
       setLoading(false);
     }
@@ -64,32 +64,30 @@ export default function Notifications() {
 
   // Conectar con Socket.IO
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
 
     if (!token) {
-      toast.error('Debes iniciar sesión');
-      navigate('/login');
+      toast.error("Debes iniciar sesión");
+      navigate("/login");
       return;
     }
 
-    const socket = io('http://localhost:4000', {
+    const socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ["websocket", "polling"],
     });
 
-    socket.on('connect', () => {
-      console.log('Conectado al servidor de notificaciones');
+    socket.on("connect", () => {
+      console.log("Conectado al servidor de notificaciones");
     });
 
-    socket.on('connect_error', error => {
-      console.error('Error de conexión Socket.IO:', error.message);
+    socket.on("connect_error", (error) => {
+      console.error("Error de conexión Socket.IO:", error.message);
     });
 
-    socket.on('new_notification', (notification: Notification) => {
-      setNotifications(current => {
-        const existing = current.find(
-          item => item.id === notification.id
-        );
+    socket.on("new_notification", (notification: Notification) => {
+      setNotifications((current) => {
+        const existing = current.find((item) => item.id === notification.id);
 
         if (existing) {
           return current;
@@ -98,13 +96,13 @@ export default function Notifications() {
         return [notification, ...current];
       });
 
-      toast.success('¡Tienes una nueva notificación!');
+      toast.success("¡Tienes una nueva notificación!");
     });
 
     loadNotifications();
 
     return () => {
-      socket.off('new_notification');
+      socket.off("new_notification");
       socket.disconnect();
     };
   }, [navigate, loadNotifications]);
@@ -114,48 +112,46 @@ export default function Notifications() {
     try {
       await api.patch(`/notifications/${id}/read`);
 
-      setNotifications(current =>
-        current.map(item =>
-          item.id === id
-            ? { ...item, isRead: true }
-            : item
-        )
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, isRead: true } : item,
+        ),
       );
     } catch (error) {
-      console.error('Error al marcar como leída:', error);
-      toast.error('No se pudo actualizar la notificación');
+      console.error("Error al marcar como leída:", error);
+      toast.error("No se pudo actualizar la notificación");
     }
   };
 
   // Marcar todas como leídas
   const markAllAsRead = async () => {
     try {
-      await api.patch('/notifications/read-all');
+      await api.patch("/notifications/read-all");
 
-      setNotifications(current =>
-        current.map(item => ({
+      setNotifications((current) =>
+        current.map((item) => ({
           ...item,
           isRead: true,
-        }))
+        })),
       );
 
-      toast.success('Todas las notificaciones están leídas');
+      toast.success("Todas las notificaciones están leídas");
     } catch (error) {
-      console.error('Error al marcar todas como leídas:', error);
-      toast.error('No se pudieron actualizar las notificaciones');
+      console.error("Error al marcar todas como leídas:", error);
+      toast.error("No se pudieron actualizar las notificaciones");
     }
   };
 
   // Aceptar o rechazar una solicitud de amistad
   const handleFriendRequest = async (
     notification: Notification,
-    action: FriendAction
+    action: FriendAction,
   ) => {
     if (
       notification.relatedId == null ||
-      notification.relatedType !== 'FRIENDSHIP'
+      notification.relatedType !== "FRIENDSHIP"
     ) {
-      toast.error('Esta solicitud no tiene una referencia válida');
+      toast.error("Esta solicitud no tiene una referencia válida");
       return;
     }
 
@@ -163,37 +159,28 @@ export default function Notifications() {
       return;
     }
 
-    setProcessingIds(current => [
-      ...current,
-      notification.id,
-    ]);
+    setProcessingIds((current) => [...current, notification.id]);
 
     try {
       const endpoint =
-        action === 'accept'
-          ? '/friends/accept'
-          : '/friends/reject';
+        action === "accept" ? "/friends/accept" : "/friends/reject";
 
       const response = await api.post(endpoint, {
         friendshipId: notification.relatedId,
       });
 
-      setNotifications(current =>
-        current.map(item =>
-          item.id === notification.id
-            ? { ...item, isRead: true }
-            : item
-        )
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notification.id ? { ...item, isRead: true } : item,
+        ),
       );
 
       toast.success(
         response.data?.message ||
-        (action === 'accept'
-          ? 'Solicitud aceptada'
-          : 'Solicitud rechazada')
+          (action === "accept" ? "Solicitud aceptada" : "Solicitud rechazada"),
       );
     } catch (error: unknown) {
-      console.error('Error al procesar solicitud:', error);
+      console.error("Error al procesar solicitud:", error);
 
       const serverMessage = (
         error as {
@@ -205,52 +192,47 @@ export default function Notifications() {
         }
       )?.response?.data?.message;
 
-      toast.error(
-        serverMessage || 'No se pudo procesar la solicitud'
-      );
+      toast.error(serverMessage || "No se pudo procesar la solicitud");
     } finally {
-      setProcessingIds(current =>
-        current.filter(id => id !== notification.id)
+      setProcessingIds((current) =>
+        current.filter((id) => id !== notification.id),
       );
     }
   };
 
-  const unreadCount = notifications.filter(
-    item => !item.isRead
-  ).length;
+  const unreadCount = notifications.filter((item) => !item.isRead).length;
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'LIKE':
-        return '❤️';
-      case 'COMMENT':
-        return '💬';
-      case 'FRIEND_REQUEST':
-        return '👥';
-      case 'FRIEND_ACCEPTED':
-        return '🤝';
-      case 'MESSAGE':
-        return '✉️';
+      case "LIKE":
+        return "❤️";
+      case "COMMENT":
+        return "💬";
+      case "FRIEND_REQUEST":
+        return "👥";
+      case "FRIEND_ACCEPTED":
+        return "🤝";
+      case "MESSAGE":
+        return "✉️";
       default:
-        return '🔔';
+        return "🔔";
     }
   };
 
   const formatDate = (date: string) =>
-    new Date(date).toLocaleString('es-PE', {
-      dateStyle: 'short',
-      timeStyle: 'short',
+    new Date(date).toLocaleString("es-PE", {
+      dateStyle: "short",
+      timeStyle: "short",
     });
 
   return (
     <div className="min-h-screen bg-[#15202b] text-white p-4">
       <div className="max-w-3xl mx-auto">
-
         {/* BARRA SUPERIOR */}
         <div className="mb-3">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate("/")}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#192734] border border-[#38444d] text-sky-400 hover:bg-[#253341] text-sm font-semibold transition"
           >
             ← Volver al inicio
@@ -258,13 +240,10 @@ export default function Notifications() {
         </div>
 
         <div className="bg-[#192734] border border-[#38444d] rounded-2xl shadow-2xl overflow-hidden">
-
           {/* ENCABEZADO */}
           <div className="bg-[#253341] border-b border-[#38444d] text-white p-6 flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold">
-                🔔 Notificaciones
-              </h1>
+              <h1 className="text-2xl font-bold">🔔 Notificaciones</h1>
 
               <p className="text-gray-400 text-sm mt-1">
                 Mantente al día con tu actividad
@@ -311,23 +290,21 @@ export default function Notifications() {
             </div>
           ) : (
             <div className="divide-y divide-[#38444d]">
-              {notifications.map(notification => {
+              {notifications.map((notification) => {
                 const isFriendRequest =
-                  notification.type === 'FRIEND_REQUEST' &&
-                  notification.relatedType === 'FRIENDSHIP' &&
+                  notification.type === "FRIEND_REQUEST" &&
+                  notification.relatedType === "FRIENDSHIP" &&
                   notification.relatedId != null;
 
-                const isProcessing = processingIds.includes(
-                  notification.id
-                );
+                const isProcessing = processingIds.includes(notification.id);
 
                 return (
                   <div
                     key={notification.id}
                     className={`p-5 flex gap-4 items-start transition ${
                       notification.isRead
-                        ? 'bg-[#192734] hover:bg-[#253341]/50'
-                        : 'bg-sky-500/10 hover:bg-sky-500/15'
+                        ? "bg-[#192734] hover:bg-[#253341]/50"
+                        : "bg-sky-500/10 hover:bg-sky-500/15"
                     }`}
                   >
                     {/* ICONO */}
@@ -351,26 +328,18 @@ export default function Notifications() {
                           <button
                             type="button"
                             onClick={() =>
-                              handleFriendRequest(
-                                notification,
-                                'accept'
-                              )
+                              handleFriendRequest(notification, "accept")
                             }
                             disabled={isProcessing}
                             className="bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold px-5 py-2 rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {isProcessing
-                              ? 'Procesando...'
-                              : 'Aceptar'}
+                            {isProcessing ? "Procesando..." : "Aceptar"}
                           </button>
 
                           <button
                             type="button"
                             onClick={() =>
-                              handleFriendRequest(
-                                notification,
-                                'reject'
-                              )
+                              handleFriendRequest(notification, "reject")
                             }
                             disabled={isProcessing}
                             className="bg-[#253341] hover:bg-[#304253] border border-[#38444d] text-gray-200 text-sm font-semibold px-5 py-2 rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -401,9 +370,7 @@ export default function Notifications() {
               })}
             </div>
           )}
-
         </div>
-
       </div>
     </div>
   );

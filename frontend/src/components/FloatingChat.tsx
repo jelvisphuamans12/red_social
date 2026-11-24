@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
-import { io } from 'socket.io-client';
-import { api } from '../api/client';
-import { useAuthStore } from '../store/authStore';
-import { useCall } from '../context/CallContext';
-import toast from 'react-hot-toast';
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { useLocation } from "react-router-dom";
+import { io } from "socket.io-client";
+import { api } from "../api/client";
+import { useAuthStore } from "../store/authStore";
+import { useCall } from "../context/CallContext";
+import { SOCKET_URL } from "../lib/socketUrl";
+import toast from "react-hot-toast";
 
 interface ChatUser {
   id: number;
@@ -27,11 +28,9 @@ interface OpenWindow {
   unread: number;
 }
 
-const SOCKET_URL = 'http://localhost:4000';
-
 function getAvatar(url: string | null) {
   if (!url) return null;
-  return url.startsWith('http') ? url : `${SOCKET_URL}${url}`;
+  return url.startsWith("http") ? url : `${SOCKET_URL}${url}`;
 }
 
 export default function FloatingChat() {
@@ -42,7 +41,9 @@ export default function FloatingChat() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [openWindows, setOpenWindows] = useState<OpenWindow[]>([]);
-  const [messagesByUser, setMessagesByUser] = useState<Record<number, MiniMessage[]>>({});
+  const [messagesByUser, setMessagesByUser] = useState<
+    Record<number, MiniMessage[]>
+  >({});
   const [inputs, setInputs] = useState<Record<number, string>>({});
   const [sendingId, setSendingId] = useState<number | null>(null);
 
@@ -51,13 +52,13 @@ export default function FloatingChat() {
 
   // No mostrar la burbuja flotante si ya estamos en la pantalla completa de /chat
   const isHiddenRoute =
-    pathname === '/chat' || pathname === '/login' || pathname === '/register';
+    pathname === "/chat" || pathname === "/login" || pathname === "/register";
 
   // Cargar contactos
   useEffect(() => {
     if (!token || !user) return;
     api
-      .get('/messages/users')
+      .get("/messages/users")
       .then((res) => setUsers(res.data || []))
       .catch(() => {});
   }, [token, user]);
@@ -68,11 +69,12 @@ export default function FloatingChat() {
 
     const socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ["websocket", "polling"],
     });
 
-    socket.on('new_message', (msg: MiniMessage) => {
-      const otherUserId = msg.senderId === user.id ? msg.receiverId : msg.senderId;
+    socket.on("new_message", (msg: MiniMessage) => {
+      const otherUserId =
+        msg.senderId === user.id ? msg.receiverId : msg.senderId;
 
       setMessagesByUser((prev) => {
         const list = prev[otherUserId] || [];
@@ -81,7 +83,7 @@ export default function FloatingChat() {
       });
 
       // Si el mensaje es entrante y no estamos en /chat, abrir o marcar en la ventanita flotante
-      if (msg.senderId !== user.id && window.location.pathname !== '/chat') {
+      if (msg.senderId !== user.id && window.location.pathname !== "/chat") {
         const sender = usersRef.current.find((u) => u.id === msg.senderId);
         if (sender) {
           setOpenWindows((prev) => {
@@ -90,11 +92,14 @@ export default function FloatingChat() {
               return prev.map((w) =>
                 w.user.id === sender.id
                   ? { ...w, unread: w.minimized ? w.unread + 1 : 0 }
-                  : w
+                  : w,
               );
             }
             // Máximo 2 ventanitas abiertas como Facebook
-            return [...prev.slice(-1), { user: sender, minimized: false, unread: 0 }];
+            return [
+              ...prev.slice(-1),
+              { user: sender, minimized: false, unread: 0 },
+            ];
           });
         }
       }
@@ -114,7 +119,7 @@ export default function FloatingChat() {
       const exists = prev.find((w) => w.user.id === target.id);
       if (exists) {
         return prev.map((w) =>
-          w.user.id === target.id ? { ...w, minimized: false, unread: 0 } : w
+          w.user.id === target.id ? { ...w, minimized: false, unread: 0 } : w,
         );
       }
       return [...prev.slice(-1), { user: target, minimized: false, unread: 0 }];
@@ -125,7 +130,7 @@ export default function FloatingChat() {
         const res = await api.get(`/messages/${target.id}`);
         setMessagesByUser((prev) => ({ ...prev, [target.id]: res.data || [] }));
       } catch {
-        toast.error('No se pudo cargar el chat');
+        toast.error("No se pudo cargar el chat");
       }
     }
   };
@@ -138,23 +143,27 @@ export default function FloatingChat() {
     setOpenWindows((prev) =>
       prev.map((w) =>
         w.user.id === userId
-          ? { ...w, minimized: !w.minimized, unread: !w.minimized ? w.unread : 0 }
-          : w
-      )
+          ? {
+              ...w,
+              minimized: !w.minimized,
+              unread: !w.minimized ? w.unread : 0,
+            }
+          : w,
+      ),
     );
   };
 
   const handleSendMiniMessage = async (targetId: number, e: FormEvent) => {
     e.preventDefault();
-    const text = (inputs[targetId] || '').trim();
+    const text = (inputs[targetId] || "").trim();
     if (!text || sendingId === targetId) return;
 
     setSendingId(targetId);
-    setInputs((prev) => ({ ...prev, [targetId]: '' }));
+    setInputs((prev) => ({ ...prev, [targetId]: "" }));
 
     try {
       const formData = new FormData();
-      formData.append('content', text);
+      formData.append("content", text);
       const res = await api.post(`/messages/${targetId}`, formData);
       const saved: MiniMessage = res.data;
 
@@ -164,7 +173,7 @@ export default function FloatingChat() {
         return { ...prev, [targetId]: [...list, saved] };
       });
     } catch {
-      toast.error('No se pudo enviar');
+      toast.error("No se pudo enviar");
     } finally {
       setSendingId(null);
     }
@@ -200,7 +209,9 @@ export default function FloatingChat() {
                     {peer.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="text-sm font-bold text-white truncate">{peer.name}</span>
+                <span className="text-sm font-bold text-white truncate">
+                  {peer.name}
+                </span>
                 {unread > 0 && (
                   <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-sky-500 text-white">
                     {unread}
@@ -215,7 +226,7 @@ export default function FloatingChat() {
                 <button
                   type="button"
                   disabled={isBusy}
-                  onClick={() => startCall(peer, 'audio')}
+                  onClick={() => startCall(peer, "audio")}
                   title="Llamar"
                   className="w-7 h-7 rounded-full hover:bg-[#38444d] text-sky-400 text-xs flex items-center justify-center"
                 >
@@ -224,7 +235,7 @@ export default function FloatingChat() {
                 <button
                   type="button"
                   disabled={isBusy}
-                  onClick={() => startCall(peer, 'video')}
+                  onClick={() => startCall(peer, "video")}
                   title="Videollamada"
                   className="w-7 h-7 rounded-full hover:bg-[#38444d] text-sky-400 text-xs flex items-center justify-center"
                 >
@@ -263,16 +274,16 @@ export default function FloatingChat() {
                       return (
                         <div
                           key={m.id}
-                          className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                          className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                         >
                           <div
                             className={`max-w-[80%] px-3 py-1.5 rounded-2xl text-xs whitespace-pre-wrap break-words ${
                               isMine
-                                ? 'bg-sky-600 text-white rounded-br-none'
-                                : 'bg-[#253341] text-gray-100 rounded-bl-none border border-[#38444d]'
+                                ? "bg-sky-600 text-white rounded-br-none"
+                                : "bg-[#253341] text-gray-100 rounded-bl-none border border-[#38444d]"
                             }`}
                           >
-                            {m.content || '📎 Archivo adjunto'}
+                            {m.content || "📎 Archivo adjunto"}
                           </div>
                         </div>
                       );
@@ -287,16 +298,19 @@ export default function FloatingChat() {
                 >
                   <input
                     type="text"
-                    value={inputs[peer.id] || ''}
+                    value={inputs[peer.id] || ""}
                     onChange={(e) =>
-                      setInputs((prev) => ({ ...prev, [peer.id]: e.target.value }))
+                      setInputs((prev) => ({
+                        ...prev,
+                        [peer.id]: e.target.value,
+                      }))
                     }
                     placeholder="Aa"
                     className="flex-1 min-w-0 bg-[#253341] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-400 outline-none focus:ring-1 focus:ring-sky-500"
                   />
                   <button
                     type="submit"
-                    disabled={!(inputs[peer.id] || '').trim()}
+                    disabled={!(inputs[peer.id] || "").trim()}
                     className="px-3 py-1.5 rounded-full bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold disabled:opacity-40"
                   >
                     ➤
@@ -313,7 +327,9 @@ export default function FloatingChat() {
         {isDrawerOpen && (
           <div className="mb-2 w-72 bg-[#192734] border border-[#38444d] rounded-2xl shadow-2xl overflow-hidden">
             <div className="px-4 py-3 bg-[#253341] border-b border-[#38444d] flex items-center justify-between">
-              <span className="font-bold text-sm text-white">💬 Chats rápidos</span>
+              <span className="font-bold text-sm text-white">
+                💬 Chats rápidos
+              </span>
               <button
                 type="button"
                 onClick={() => setIsDrawerOpen(false)}
@@ -341,11 +357,15 @@ export default function FloatingChat() {
                       {u.name.charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <span className="text-sm font-medium text-white truncate">{u.name}</span>
+                  <span className="text-sm font-medium text-white truncate">
+                    {u.name}
+                  </span>
                 </button>
               ))}
               {users.length === 0 && (
-                <p className="p-4 text-xs text-center text-gray-400">Sin contactos disponibles</p>
+                <p className="p-4 text-xs text-center text-gray-400">
+                  Sin contactos disponibles
+                </p>
               )}
             </div>
           </div>
