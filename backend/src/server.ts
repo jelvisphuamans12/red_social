@@ -15,6 +15,8 @@ import messageRoutes from "./routes/messages.routes";
 import notificationRoutes from "./routes/notifications.routes";
 import storyRoutes from "./routes/stories.routes";
 import friendshipRoutes from "./routes/friendship.routes";
+// Si creaste password.routes.ts aparte, descomenta la siguiente línea y la de app.use("/api/auth", passwordRoutes):
+// import passwordRoutes from "./routes/password.routes";
 
 dotenv.config();
 
@@ -38,6 +40,7 @@ const isOriginAllowed = (origin?: string) => {
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
   return false;
 };
+
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
@@ -88,6 +91,7 @@ app.get("/api/health", (req: Request, res: Response) => {
 
 // Rutas
 app.use("/api/auth", authRoutes);
+// app.use("/api/auth", passwordRoutes);
 app.use("/api/stories", storyRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
@@ -121,7 +125,6 @@ io.use((socket, next) => {
   }
 });
 
-// Conexión de usuarios
 // Seguimiento de presencia en memoria (online y última vez)
 const onlineUsers = new Set<number>();
 const lastSeenMap = new Map<number, string>();

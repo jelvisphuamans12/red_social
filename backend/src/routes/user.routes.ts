@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { requireAuth, AuthRequest } from "../middlewares/auth.middleware";
 import { upload } from "../config/upload";
 
@@ -41,6 +42,61 @@ router.put(
       res.json(updatedUser);
     } catch (error) {
       res.status(500).json({ error: "Error al actualizar perfil" });
+    }
+  },
+);
+
+// POST /api/users/change-password - Cambiar contraseña estando autenticado
+router.post(
+  "/change-password",
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const currentPassword =
+        typeof req.body?.currentPassword === "string"
+          ? req.body.currentPassword
+          : "";
+      const newPassword =
+        typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+
+      if (!currentPassword || newPassword.length < 8) {
+        res.status(400).json({
+          error:
+            "Debes enviar tu contraseña actual y una nueva de al menos 8 caracteres",
+        });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "Usuario no encontrado" });
+        return;
+      }
+
+      // Reemplaza `passwordHash` con `Ctrl + H` si tu columna en User se llama distinto (ej. `password`)
+      const validPassword = await bcrypt.compare(
+        currentPassword,
+        user.passwordHash,
+      );
+
+      if (!validPassword) {
+        res.status(401).json({ error: "La contraseña actual es incorrecta" });
+        return;
+      }
+
+      const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: newPasswordHash },
+      });
+
+      res.json({ message: "Contraseña actualizada correctamente" });
+    } catch (error) {
+      res.status(500).json({ error: "Error al cambiar la contraseña" });
     }
   },
 );
