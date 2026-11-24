@@ -1,8 +1,8 @@
-import { Router, Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
-import { z } from 'zod';
+import { Router, Request, Response } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -21,21 +21,25 @@ const loginSchema = z.object({
 });
 
 // POST /api/auth/register
-router.post('/register', async (req: Request, res: Response): Promise<void> => {
+router.post("/register", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, inviteCode } = registerSchema.parse(req.body);
+    const { name, email, password, inviteCode } = registerSchema.parse(
+      req.body,
+    );
 
     // 1. Verificar si el correo ya existe
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      res.status(400).json({ error: 'El correo ya está registrado' });
+      res.status(400).json({ error: "El correo ya está registrado" });
       return;
     }
 
     // 2. Verificar si el código de invitación es válido y no ha sido usado
-    const invite = await prisma.invite.findUnique({ where: { code: inviteCode } });
-    if (!invite || invite.usedById) {
-      res.status(400).json({ error: 'Código de invitación inválido o ya utilizado' });
+    const invite = await prisma.invite.findUnique({
+      where: { code: inviteCode },
+    });
+    if (!invite) {
+      res.status(400).json({ error: "Código de invitación inválido" });
       return;
     }
 
@@ -45,48 +49,58 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       data: { name, email, passwordHash },
     });
 
-    // 4. Marcar invitación como usada
-    await prisma.invite.update({
-      where: { id: invite.id },
-      data: { usedById: newUser.id },
-    });
-
     // 5. Generar Token
-    const token = jwt.sign({ id: newUser.id, role: newUser.role }, process.env.JWT_SECRET as string, { expiresIn: '7d' });
-    res.status(201).json({ message: 'Usuario registrado con éxito', token, user: { id: newUser.id, name: newUser.name, role: newUser.role } });
+    const token = jwt.sign(
+      { id: newUser.id, role: newUser.role },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "7d" },
+    );
+    res.status(201).json({
+      message: "Usuario registrado con éxito",
+      token,
+      user: { id: newUser.id, name: newUser.name, role: newUser.role },
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.issues[0].message });
       return;
     }
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
 // POST /api/auth/login
-router.post('/login', async (req: Request, res: Response): Promise<void> => {
+router.post("/login", async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      res.status(401).json({ error: 'Credenciales inválidas' });
+      res.status(401).json({ error: "Credenciales inválidas" });
       return;
     }
-    
+
     if (user.isBanned) {
-       res.status(403).json({ error: 'Tu cuenta está suspendida' });
-       return;
+      res.status(403).json({ error: "Tu cuenta está suspendida" });
+      return;
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET as string, { expiresIn: '7d' });
-    res.json({ message: 'Login exitoso', token, user: { id: user.id, name: user.name, role: user.role } });
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "7d" },
+    );
+    res.json({
+      message: "Login exitoso",
+      token,
+      user: { id: user.id, name: user.name, role: user.role },
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.issues[0].message });
       return;
     }
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
