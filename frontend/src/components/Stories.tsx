@@ -3,7 +3,13 @@ import type { ChangeEvent } from "react";
 import { api } from "../api/client";
 import toast from "react-hot-toast";
 
-const API_URL = "http://localhost:4000";
+const RAW_API_URL =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_BACKEND_URL ||
+  (typeof api?.defaults?.baseURL === "string"
+    ? api.defaults.baseURL.replace(/\/api\/?$/, "")
+    : "http://localhost:4000");
+const API_URL = RAW_API_URL.replace(/\/+$/, "");
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 const ALLOWED_TYPES = [
