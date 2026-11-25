@@ -5,7 +5,10 @@ import { api } from "../api/client";
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
 
-const API_URL = "http://localhost:4000";
+const API_URL = (api.defaults.baseURL || "http://localhost:4000").replace(
+  /\/api\/?$/,
+  "",
+);
 
 export default function Profile() {
   const { user, login } = useAuthStore();

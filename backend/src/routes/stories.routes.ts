@@ -225,10 +225,10 @@ router.get(
         f.requesterId === currentUserId ? f.addresseeId : f.requesterId,
       );
 
-      // 3. Crear el arreglo con mi ID y los IDs de mis amigos
+      // 3. Crear el arreglo con mi ID y los IDs de mis amigos aceptados
       const allowedAuthorIds = [currentUserId, ...friendIds];
 
-      // 4. Buscar historias (Aplicando el candado en authorId)
+      // 4. Buscar historias: propias, de amigos aceptados o globales
       const stories = await prisma.story.findMany({
         where: {
           expiresAt: {
@@ -237,9 +237,7 @@ router.get(
           author: {
             isBanned: false,
           },
-          authorId: {
-            in: allowedAuthorIds, // <--- EL CANDADO DE PRIVACIDAD
-          },
+          OR: [{ authorId: { in: allowedAuthorIds } }, { privacy: "GLOBAL" }],
         },
         include: {
           author: {

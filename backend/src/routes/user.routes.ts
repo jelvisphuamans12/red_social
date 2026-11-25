@@ -1,4 +1,26 @@
 import { Router, Request, Response } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { requireAuth, AuthRequest } from "../middlewares/auth.middleware";
+
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase() || ".jpg";
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
@@ -402,6 +424,158 @@ router.post(
       }
       console.error("Error en reset-password:", error);
       res.status(500).json({ error: "Error interno del servidor" });
+    }
+  },
+);
+
+// GET /api/users/me
+router.get(
+  "/me",
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: "No autorizado" });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          bio: true,
+          avatarUrl: true,
+          coverUrl: true,
+        },
+      });
+
+      if (!user) {
+        res.status(404).json({ error: "Usuario no encontrado" });
+        return;
+      }
+
+      res.status(200).json(user);
+    } catch (error) {
+      console.error("Error en GET /users/me:", error);
+      res.status(500).json({ error: "Error interno del servidor" });
+    }
+  },
+);
+
+// PUT /api/users/me
+router.put(
+  "/me",
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: "No autorizado" });
+        return;
+      }
+
+      const { name, bio } = req.body as { name?: string; bio?: string };
+
+      if (typeof name === "string" && name.trim().length < 2) {
+        res
+          .status(400)
+          .json({ error: "El nombre debe tener al menos 2 caracteres" });
+        return;
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(typeof name === "string" ? { name: name.trim() } : {}),
+          ...(typeof bio === "string" ? { bio: bio.trim() } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          bio: true,
+          avatarUrl: true,
+          coverUrl: true,
+        },
+      });
+
+      res.status(200).json(updated);
+    } catch (error) {
+      console.error("Error en PUT /users/me:", error);
+      res.status(500).json({ error: "Error interno del servidor" });
+    }
+  },
+);
+
+// POST /api/users/avatar
+router.post(
+  "/avatar",
+  requireAuth,
+  upload.single("avatar"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: "No autorizado" });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({ error: "No se envió ninguna imagen de perfil" });
+        return;
+      }
+
+      const avatarUrl = `/uploads/${req.file.filename}`;
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl },
+      });
+
+      res.status(200).json({ avatarUrl });
+    } catch (error) {
+      console.error("Error en POST /users/avatar:", error);
+      res.status(500).json({ error: "Error al subir el avatar" });
+    }
+  },
+);
+
+// POST /api/users/cover
+router.post(
+  "/cover",
+  requireAuth,
+  upload.single("cover"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: "No autorizado" });
+        return;
+      }
+
+      if (!req.file) {
+        res
+          .status(400)
+          .json({ error: "No se envió ninguna imagen de portada" });
+        return;
+      }
+
+      const coverUrl = `/uploads/${req.file.filename}`;
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { coverUrl },
+      });
+
+      res.status(200).json({ coverUrl });
+    } catch (error) {
+      console.error("Error en POST /users/cover:", error);
+      res.status(500).json({ error: "Error al subir la portada" });
     }
   },
 );
