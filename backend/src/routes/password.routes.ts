@@ -11,13 +11,52 @@ const forgotPasswordSchema = z.object({
   email: z.string().email(),
 });
 
+const SECURITY_HASH_ROUNDS = 12;
+
+const securityQuestionSchema = z.object({
+  email: z.string().email(),
+});
+
+const verifySecurityAnswerSchema = z.object({
+  email: z.string().email(),
+  answer: z.string().min(1),
+});
+
 const resetPasswordSchema = z.object({
-  token: z.string().min(1),
-  newPassword: z.string().min(6),
+  token: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  answer: z.string().min(1).optional(),
+  password: z.string().min(6).optional(),
+  newPassword: z.string().min(6).optional(),
 });
 
 function hashResetToken(rawToken: string): string {
   return crypto.createHash("sha256").update(rawToken).digest("hex");
+}
+
+function normalizeAnswer(answer: string): string {
+  return answer.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+async function createSingleUseResetToken(userId: number): Promise<string> {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashResetToken(rawToken);
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+  await prisma.passwordResetToken.updateMany({
+    where: { userId, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId,
+      tokenHash,
+      expiresAt,
+    },
+  });
+
+  return rawToken;
 }
 
 async function sendPasswordResetLink(params: { to: string; resetUrl: string }) {
@@ -88,6 +127,14 @@ router.post(
       const { token: rawToken, newPassword } = resetPasswordSchema.parse(
         req.body,
       );
+
+      if (!rawToken || !newPassword) {
+        res.status(400).json({
+          error: "Debes proporcionar el token y la nueva contraseña.",
+        });
+        return;
+      }
+
       const tokenHash = hashResetToken(rawToken.trim());
       const now = new Date();
 
@@ -100,11 +147,9 @@ router.post(
       });
 
       if (!resetRecord) {
-        res
-          .status(400)
-          .json({
-            error: "El enlace de recuperación es inválido o ha expirado.",
-          });
+        res.status(400).json({
+          error: "El enlace de recuperación es inválido o ha expirado.",
+        });
         return;
       }
 

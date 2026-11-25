@@ -9,14 +9,33 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // Validaciones con Zod
-const registerSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
-  inviteCode: z.string().min(1),
-  securityQuestion: z.string().min(3).optional(),
-  securityAnswer: z.string().min(1).optional(),
-});
+const SECURITY_HASH_ROUNDS = 12;
+
+const registerSchema = z
+  .object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    password: z.string().min(6),
+    inviteCode: z.string().min(1),
+    securityQuestion: z.string().trim().min(3).max(200).optional(),
+    securityAnswer: z.string().trim().min(2).max(200).optional(),
+  })
+  .refine(
+    (data) => {
+      const hasQuestion = Boolean(
+        data.securityQuestion && data.securityQuestion.length > 0,
+      );
+      const hasAnswer = Boolean(
+        data.securityAnswer && data.securityAnswer.length > 0,
+      );
+      return hasQuestion === hasAnswer;
+    },
+    {
+      message:
+        "Debes completar tanto la pregunta como la respuesta de seguridad.",
+      path: ["securityAnswer"],
+    },
+  );
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -49,7 +68,12 @@ function hashResetToken(rawToken: string): string {
 }
 
 function normalizeAnswer(answer: string): string {
-  return answer.trim().toLowerCase();
+  return answer.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+async function hashSecurityAnswer(answer: string): Promise<string> {
+  const normalized = normalizeAnswer(answer);
+  return bcrypt.hash(normalized, SECURITY_HASH_ROUNDS);
 }
 
 async function createSingleUseResetToken(userId: number): Promise<string> {
@@ -111,9 +135,27 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
     }
 
     // 3. Encriptar contraseña y (opcionalmente) pregunta de seguridad
+    const normalizedQuestion = securityQuestion?.trim()
+      ? securityQuestion.trim().replace(/\s+/g, " ")
+      : null;
+    const normalizedAnswer = securityAnswer?.trim()
+      ? normalizeAnswer(securityAnswer)
+      : null;
+
+    if (
+      (normalizedQuestion && !normalizedAnswer) ||
+      (!normalizedQuestion && normalizedAnswer)
+    ) {
+      res.status(400).json({
+        error:
+          "Debes indicar tanto la pregunta como la respuesta de seguridad.",
+      });
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
-    const securityAnswerHash = securityAnswer
-      ? await bcrypt.hash(normalizeAnswer(securityAnswer), 10)
+    const securityAnswerHash = normalizedAnswer
+      ? await hashSecurityAnswer(normalizedAnswer)
       : null;
 
     const newUser = await prisma.user.create({
@@ -121,7 +163,7 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
         name,
         email,
         passwordHash,
-        securityQuestion: securityQuestion?.trim() || null,
+        securityQuestion: normalizedQuestion,
         securityAnswerHash,
       },
     });
