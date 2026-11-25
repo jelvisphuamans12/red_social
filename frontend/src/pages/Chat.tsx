@@ -96,6 +96,110 @@ const MAX_FILES = 10;
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥"];
 
+const CHAT_EMOJIS = [
+  "😀",
+  "😂",
+  "🤣",
+  "😊",
+  "😍",
+  "🥰",
+  "😘",
+  "😎",
+  "🤩",
+  "🥳",
+  "😅",
+  "😭",
+  "😡",
+  "🤔",
+  "🙄",
+  "😴",
+  "🤗",
+  "🤐",
+  "👍",
+  "👎",
+  "👏",
+  "🙌",
+  "🙏",
+  "🤝",
+  "✌️",
+  "💪",
+  "❤️",
+  "🧡",
+  "💛",
+  "💚",
+  "💙",
+  "💜",
+  "🔥",
+  "⭐",
+  "✨",
+  "🎉",
+  "💯",
+  "💬",
+  "🎵",
+  "🚀",
+];
+
+interface ChatSticker {
+  id: string;
+  label: string;
+  src: string;
+}
+
+const makeStickerSvg = (bg: string, face: string, badge: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+      <rect width="128" height="128" rx="28" fill="${bg}"/>
+      <circle cx="64" cy="66" r="38" fill="#ffffff" fill-opacity="0.95"/>
+      <text x="64" y="76" text-anchor="middle" font-size="44" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${face}</text>
+      <circle cx="98" cy="28" r="18" fill="#0f172a"/>
+      <text x="98" y="34" text-anchor="middle" font-size="18" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${badge}</text>
+    </svg>`,
+  )}`;
+
+const CHAT_STICKERS: ChatSticker[] = [
+  { id: "hola", label: "Hola", src: makeStickerSvg("#0284c7", "👋", "✨") },
+  { id: "risa", label: "Jajaja", src: makeStickerSvg("#eab308", "😂", "🔥") },
+  {
+    id: "amor",
+    label: "Me encanta",
+    src: makeStickerSvg("#e11d48", "🥰", "❤️"),
+  },
+  { id: "cool", label: "Genial", src: makeStickerSvg("#0d9488", "😎", "👍") },
+  {
+    id: "fiesta",
+    label: "Celebración",
+    src: makeStickerSvg("#7c3aed", "🥳", "🎉"),
+  },
+  {
+    id: "sorpresa",
+    label: "Qué?!",
+    src: makeStickerSvg("#ea580c", "😮", "⚡"),
+  },
+  { id: "triste", label: "Triste", src: makeStickerSvg("#475569", "😢", "💙") },
+  {
+    id: "gracias",
+    label: "Gracias",
+    src: makeStickerSvg("#16a34a", "🙏", "💯"),
+  },
+];
+
+const STICKER_PREFIX = "[sticker:";
+
+const parseStickerContent = (
+  text?: string | null,
+): { label: string; src: string } | null => {
+  if (!text || !text.startsWith(STICKER_PREFIX) || !text.endsWith("]")) {
+    return null;
+  }
+  const inner = text.slice(STICKER_PREFIX.length, -1);
+  const sepIndex = inner.indexOf("|");
+  if (sepIndex === -1) return null;
+  const label = inner.slice(0, sepIndex);
+  const src = inner.slice(sepIndex + 1);
+  if (!src.startsWith("data:image/svg+xml")) return null;
+  return { label, src };
+};
+
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -141,6 +245,8 @@ export default function Chat() {
     senderName: string;
   } | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<"emoji" | "sticker">("emoji");
   const [menuMessage, setMenuMessage] = useState<Message | null>(null);
   const [deleteModalMessage, setDeleteModalMessage] = useState<Message | null>(
     null,
@@ -768,9 +874,61 @@ export default function Chat() {
     }
   };
 
+  const handleInsertEmoji = (emoji: string) => {
+    const input = inputRef.current;
+    if (!input) {
+      handleContentInputChange(`${content}${emoji}`);
+      return;
+    }
+    const start = input.selectionStart ?? content.length;
+    const end = input.selectionEnd ?? content.length;
+    const nextValue = content.slice(0, start) + emoji + content.slice(end);
+    handleContentInputChange(nextValue);
+    setTimeout(() => {
+      input.focus();
+      const pos = start + emoji.length;
+      input.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
+  const handleSendSticker = async (sticker: ChatSticker) => {
+    if (!selectedUser || sending) return;
+    const receiverId = selectedUser.id;
+    const replyTarget = replyingTo;
+
+    setPickerOpen(false);
+    setSending(true);
+    setReplyingTo(null);
+
+    try {
+      const payload: Record<string, string | number> = {
+        content: `${STICKER_PREFIX}${sticker.label}|${sticker.src}]`,
+        isViewOnce: "false",
+      };
+      if (replyTarget) {
+        payload.replyToId = replyTarget.id;
+      }
+      const response = await api.post(`/messages/${receiverId}`, payload);
+      const newMessage: Message = response.data;
+      if (selectedUserIdRef.current === receiverId) {
+        setMessages((current) =>
+          current.some((item) => item.id === newMessage.id)
+            ? current
+            : [...current, newMessage],
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "No se pudo enviar el sticker");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const getMessageSummary = (msg: Message | ReplyPreview) => {
     if (msg.deletedForAll) return "🚫 Este mensaje fue eliminado";
     if (msg.isViewOnce) return "① Mensaje para ver una vez";
+    const parsedSticker = parseStickerContent(msg.content);
+    if (parsedSticker) return `🎨 Sticker: ${parsedSticker.label}`;
     if (msg.content) return msg.content;
     if (msg.media && msg.media.length > 0) {
       const type = msg.media[0].mediaType;
@@ -1230,11 +1388,27 @@ export default function Chat() {
                             {renderReplyQuote(message, isMine)}
                             {renderSharedPost(message, isMine)}
 
-                            {message.content && (
-                              <p className="whitespace-pre-wrap wrap-break-word text-sm">
-                                {message.content}
-                              </p>
-                            )}
+                            {message.content &&
+                              (() => {
+                                const sticker = parseStickerContent(
+                                  message.content,
+                                );
+                                if (sticker) {
+                                  return (
+                                    <img
+                                      src={sticker.src}
+                                      alt={sticker.label}
+                                      title={sticker.label}
+                                      className="w-28 h-28 object-contain select-none"
+                                    />
+                                  );
+                                }
+                                return (
+                                  <p className="whitespace-pre-wrap wrap-break-word text-sm">
+                                    {message.content}
+                                  </p>
+                                );
+                              })()}
 
                             {renderMedia(message.media || [])}
                           </>
@@ -1408,11 +1582,278 @@ export default function Chat() {
               </div>
             )}
 
+            {/* SELECTOR DE EMOJIS Y STICKERS */}
+            {pickerOpen && (
+              <div className="px-4 pt-3 pb-2 border-t border-[#38444d] bg-[#192734]">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab("emoji")}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                        pickerTab === "emoji"
+                          ? "bg-sky-500 text-white"
+                          : "bg-[#253341] text-gray-300 hover:bg-[#304253]"
+                      }`}
+                    >
+                      😊 Emojis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab("sticker")}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                        pickerTab === "sticker"
+                          ? "bg-sky-500 text-white"
+                          : "bg-[#253341] text-gray-300 hover:bg-[#304253]"
+                      }`}
+                    >
+                      🎨 Stickers
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(false)}
+                    className="w-7 h-7 rounded-full hover:bg-[#253341] text-gray-400 hover:text-white flex items-center justify-center text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {pickerTab === "emoji" ? (
+                  <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-40 overflow-y-auto pr-1">
+                    {CHAT_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => handleInsertEmoji(emoji)}
+                        className="h-9 rounded-lg hover:bg-[#253341] text-xl flex items-center justify-center transition"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
+                    {CHAT_STICKERS.map((sticker) => (
+                      <button
+                        key={sticker.id}
+                        type="button"
+                        onClick={() => handleSendSticker(sticker)}
+                        title={`Enviar sticker ${sticker.label}`}
+                        className="p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                      >
+                        <img
+                          src={sticker.src}
+                          alt={sticker.label}
+                          className="w-12 h-12 object-contain"
+                        />
+                        <span className="text-[10px] text-gray-300 truncate w-full text-center">
+                          {sticker.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SELECTOR DE EMOJIS Y STICKERS */}
+            {pickerOpen && (
+              <div className="px-4 pt-3 pb-2 border-t border-[#38444d] bg-[#192734]">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab("emoji")}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                        pickerTab === "emoji"
+                          ? "bg-sky-500 text-white"
+                          : "bg-[#253341] text-gray-300 hover:bg-[#304253]"
+                      }`}
+                    >
+                      😊 Emojis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab("sticker")}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                        pickerTab === "sticker"
+                          ? "bg-sky-500 text-white"
+                          : "bg-[#253341] text-gray-300 hover:bg-[#304253]"
+                      }`}
+                    >
+                      🎨 Stickers
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(false)}
+                    className="w-7 h-7 rounded-full hover:bg-[#253341] text-gray-400 hover:text-white flex items-center justify-center text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {pickerTab === "emoji" ? (
+                  <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-40 overflow-y-auto pr-1">
+                    {CHAT_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => handleInsertEmoji(emoji)}
+                        className="h-9 rounded-lg hover:bg-[#253341] text-xl flex items-center justify-center transition"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
+                    {CHAT_STICKERS.map((sticker) => (
+                      <button
+                        key={sticker.id}
+                        type="button"
+                        onClick={() => handleSendSticker(sticker)}
+                        title={`Enviar sticker ${sticker.label}`}
+                        className="p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                      >
+                        <img
+                          src={sticker.src}
+                          alt={sticker.label}
+                          className="w-12 h-12 object-contain"
+                        />
+                        <span className="text-[10px] text-gray-300 truncate w-full text-center">
+                          {sticker.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SELECTOR DE EMOJIS Y STICKERS */}
+            {pickerOpen && (
+              <div className="px-4 pt-3 pb-2 border-t border-[#38444d] bg-[#192734]">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab("emoji")}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                        pickerTab === "emoji"
+                          ? "bg-sky-500 text-white"
+                          : "bg-[#253341] text-gray-300 hover:bg-[#304253]"
+                      }`}
+                    >
+                      😊 Emojis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPickerTab("sticker")}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                        pickerTab === "sticker"
+                          ? "bg-sky-500 text-white"
+                          : "bg-[#253341] text-gray-300 hover:bg-[#304253]"
+                      }`}
+                    >
+                      🎨 Stickers
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(false)}
+                    className="w-7 h-7 rounded-full hover:bg-[#253341] text-gray-400 hover:text-white flex items-center justify-center text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {pickerTab === "emoji" ? (
+                  <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 max-h-40 overflow-y-auto pr-1">
+                    {CHAT_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => handleInsertEmoji(emoji)}
+                        className="h-9 rounded-lg hover:bg-[#253341] text-xl flex items-center justify-center transition"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
+                    {CHAT_STICKERS.map((sticker) => (
+                      <button
+                        key={sticker.id}
+                        type="button"
+                        onClick={() => handleSendSticker(sticker)}
+                        title={`Enviar sticker ${sticker.label}`}
+                        className="p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                      >
+                        <img
+                          src={sticker.src}
+                          alt={sticker.label}
+                          className="w-12 h-12 object-contain"
+                        />
+                        <span className="text-[10px] text-gray-300 truncate w-full text-center">
+                          {sticker.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* FORMULARIO */}
             <form
               onSubmit={sendMessage}
               className="p-4 border-t border-[#38444d] bg-[#192734] flex items-center gap-2"
             >
+              <button
+                type="button"
+                onClick={() => setPickerOpen((prev) => !prev)}
+                disabled={sending}
+                className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-lg transition disabled:opacity-50 ${
+                  pickerOpen
+                    ? "bg-sky-500 text-white"
+                    : "bg-[#253341] text-amber-300 hover:bg-[#304253]"
+                }`}
+                title="Emojis y stickers"
+              >
+                😊
+              </button>
+              <button
+                type="button"
+                onClick={() => setPickerOpen((prev) => !prev)}
+                disabled={sending}
+                className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-lg transition disabled:opacity-50 ${
+                  pickerOpen
+                    ? "bg-sky-500 text-white"
+                    : "bg-[#253341] text-amber-300 hover:bg-[#304253]"
+                }`}
+                title="Emojis y stickers"
+              >
+                😊
+              </button>
+              <button
+                type="button"
+                onClick={() => setPickerOpen((prev) => !prev)}
+                disabled={sending}
+                className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-lg transition disabled:opacity-50 ${
+                  pickerOpen
+                    ? "bg-sky-500 text-white"
+                    : "bg-[#253341] text-amber-300 hover:bg-[#304253]"
+                }`}
+                title="Emojis y stickers"
+              >
+                😊
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
