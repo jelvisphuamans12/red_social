@@ -142,46 +142,143 @@ const CHAT_EMOJIS = [
 interface ChatSticker {
   id: string;
   label: string;
+  pack: string;
   src: string;
+  custom?: boolean;
 }
+
+const CUSTOM_STICKERS_STORAGE_KEY = "redsocial_custom_stickers_v1";
 
 const makeStickerSvg = (bg: string, face: string, badge: string) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-      <rect width="128" height="128" rx="28" fill="${bg}"/>
-      <circle cx="64" cy="66" r="38" fill="#ffffff" fill-opacity="0.95"/>
-      <text x="64" y="76" text-anchor="middle" font-size="44" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${face}</text>
-      <circle cx="98" cy="28" r="18" fill="#0f172a"/>
-      <text x="98" y="34" text-anchor="middle" font-size="18" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${badge}</text>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140">
+      <rect width="140" height="140" rx="34" fill="${bg}"/>
+      <circle cx="70" cy="74" r="44" fill="#ffffff" fill-opacity="0.96"/>
+      <text x="70" y="88" text-anchor="middle" font-size="52" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${face}</text>
+      <circle cx="108" cy="30" r="20" fill="#0f172a"/>
+      <text x="108" y="37" text-anchor="middle" font-size="20" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${badge}</text>
     </svg>`,
   )}`;
 
-const CHAT_STICKERS: ChatSticker[] = [
-  { id: "hola", label: "Hola", src: makeStickerSvg("#0284c7", "👋", "✨") },
-  { id: "risa", label: "Jajaja", src: makeStickerSvg("#eab308", "😂", "🔥") },
+const BUILTIN_STICKERS: ChatSticker[] = [
+  // Pack Reacciones
+  {
+    id: "hola",
+    label: "Hola saludo",
+    pack: "Reacciones",
+    src: makeStickerSvg("#0284c7", "👋", "✨"),
+  },
+  {
+    id: "risa",
+    label: "Jajaja risa",
+    pack: "Reacciones",
+    src: makeStickerSvg("#eab308", "😂", "🔥"),
+  },
   {
     id: "amor",
-    label: "Me encanta",
+    label: "Me encanta amor",
+    pack: "Reacciones",
     src: makeStickerSvg("#e11d48", "🥰", "❤️"),
   },
-  { id: "cool", label: "Genial", src: makeStickerSvg("#0d9488", "😎", "👍") },
   {
-    id: "fiesta",
-    label: "Celebración",
-    src: makeStickerSvg("#7c3aed", "🥳", "🎉"),
+    id: "cool",
+    label: "Genial cool",
+    pack: "Reacciones",
+    src: makeStickerSvg("#0d9488", "😎", "👍"),
   },
   {
     id: "sorpresa",
-    label: "Qué?!",
+    label: "Qué sorpresa",
+    pack: "Reacciones",
     src: makeStickerSvg("#ea580c", "😮", "⚡"),
   },
-  { id: "triste", label: "Triste", src: makeStickerSvg("#475569", "😢", "💙") },
+  {
+    id: "triste",
+    label: "Triste llorar",
+    pack: "Reacciones",
+    src: makeStickerSvg("#475569", "😢", "💙"),
+  },
+  {
+    id: "enojo",
+    label: "Enojado furia",
+    pack: "Reacciones",
+    src: makeStickerSvg("#dc2626", "😡", "💥"),
+  },
+  {
+    id: "pensando",
+    label: "Pensando duda",
+    pack: "Reacciones",
+    src: makeStickerSvg("#6366f1", "🤔", "❓"),
+  },
+
+  // Pack Fiesta & Ánimo
+  {
+    id: "fiesta",
+    label: "Fiesta celebrar",
+    pack: "Fiesta",
+    src: makeStickerSvg("#7c3aed", "🥳", "🎉"),
+  },
   {
     id: "gracias",
-    label: "Gracias",
+    label: "Gracias por favor",
+    pack: "Fiesta",
     src: makeStickerSvg("#16a34a", "🙏", "💯"),
   },
+  {
+    id: "aplausos",
+    label: "Aplausos bravo",
+    pack: "Fiesta",
+    src: makeStickerSvg("#d97706", "👏", "🌟"),
+  },
+  {
+    id: "fuerte",
+    label: "Vamos ánimo fuerza",
+    pack: "Fiesta",
+    src: makeStickerSvg("#2563eb", "💪", "🚀"),
+  },
+  {
+    id: "dormir",
+    label: "Sueño cansado",
+    pack: "Fiesta",
+    src: makeStickerSvg("#334155", "😴", "💤"),
+  },
+  {
+    id: "abrazo",
+    label: "Abrazo cariño",
+    pack: "Fiesta",
+    src: makeStickerSvg("#db2777", "🤗", "💕"),
+  },
+  {
+    id: "musica",
+    label: "Música ritmo",
+    pack: "Fiesta",
+    src: makeStickerSvg("#9333ea", "🤩", "🎵"),
+  },
+  {
+    id: "exito",
+    label: "Éxito logro",
+    pack: "Fiesta",
+    src: makeStickerSvg("#059669", "🙌", "🏆"),
+  },
 ];
+
+const loadCustomStickers = (): ChatSticker[] => {
+  try {
+    const raw = localStorage.getItem(CUSTOM_STICKERS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item &&
+        typeof item.id === "string" &&
+        typeof item.label === "string" &&
+        typeof item.src === "string",
+    );
+  } catch {
+    return [];
+  }
+};
 
 const STICKER_PREFIX = "[sticker:";
 
@@ -196,10 +293,18 @@ const parseStickerContent = (
   if (sepIndex === -1) return null;
   const label = inner.slice(0, sepIndex);
   const src = inner.slice(sepIndex + 1);
-  if (!src.startsWith("data:image/svg+xml")) return null;
+  const isAllowedSrc =
+    src.startsWith("data:image/svg+xml") ||
+    src.startsWith("data:image/png") ||
+    src.startsWith("data:image/jpeg") ||
+    src.startsWith("data:image/webp") ||
+    src.startsWith("data:image/gif") ||
+    src.startsWith("https://") ||
+    src.startsWith("http://") ||
+    src.startsWith("/");
+  if (!isAllowedSrc) return null;
   return { label, src };
 };
-
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -247,6 +352,13 @@ export default function Chat() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerTab, setPickerTab] = useState<"emoji" | "sticker">("emoji");
+  const [stickerSearch, setStickerSearch] = useState("");
+  const [stickerPack, setStickerPack] = useState<string>("Todos");
+  const [customStickers, setCustomStickers] = useState<ChatSticker[]>(() =>
+    loadCustomStickers(),
+  );
+  const [newStickerName, setNewStickerName] = useState("");
+  const stickerUploadInputRef = useRef<HTMLInputElement>(null);
   const [menuMessage, setMenuMessage] = useState<Message | null>(null);
   const [deleteModalMessage, setDeleteModalMessage] = useState<Message | null>(
     null,
@@ -891,6 +1003,67 @@ export default function Chat() {
     }, 0);
   };
 
+  const handleUploadCustomSticker = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Solo puedes subir imágenes como sticker");
+      return;
+    }
+    if (file.size > 1.5 * 1024 * 1024) {
+      toast.error("El sticker debe pesar máximo 1.5 MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      const cleanName =
+        newStickerName.trim() ||
+        file.name.replace(/\.[^/.]+$/, "").slice(0, 24) ||
+        "Mi sticker";
+      const created: ChatSticker = {
+        id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        label: cleanName,
+        pack: "Mis stickers",
+        src: reader.result,
+        custom: true,
+      };
+      const updated = [created, ...customStickers];
+      setCustomStickers(updated);
+      setNewStickerName("");
+      setStickerPack("Mis stickers");
+      try {
+        localStorage.setItem(
+          CUSTOM_STICKERS_STORAGE_KEY,
+          JSON.stringify(updated),
+        );
+        toast.success("Sticker guardado en tu librería");
+      } catch {
+        toast.error(
+          "No se pudo guardar en el navegador (espacio lleno). Prueba una imagen más ligera.",
+        );
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteCustomSticker = (stickerId: string) => {
+    const updated = customStickers.filter((s) => s.id !== stickerId);
+    setCustomStickers(updated);
+    try {
+      localStorage.setItem(
+        CUSTOM_STICKERS_STORAGE_KEY,
+        JSON.stringify(updated),
+      );
+      toast.success("Sticker eliminado");
+    } catch {
+      toast.error("Error al actualizar tus stickers");
+    }
+  };
+
   const handleSendSticker = async (sticker: ChatSticker) => {
     if (!selectedUser || sending) return;
     const receiverId = selectedUser.id;
@@ -1334,13 +1507,22 @@ export default function Chat() {
                         </button>
                       )}
 
-                      {/* BURBUJA DEL MENSAJE */}
+                      {/* BURBUJA DEL MENSAJE (ESTILO STICKER SIN BURBUJA SI ES STICKER SOLO) */}
                       <div
-                        className={`max-w-[78%] min-w-28 px-4 py-2.5 rounded-2xl shadow-sm ${
-                          isMine
-                            ? "bg-sky-600 text-white rounded-br-none"
-                            : "bg-[#253341] text-gray-100 rounded-bl-none border border-[#38444d]"
-                        }`}
+                        className={
+                          !message.deletedForAll &&
+                          !message.isViewOnce &&
+                          !message.replyTo &&
+                          !message.sharedPostId &&
+                          (!message.media || message.media.length === 0) &&
+                          Boolean(parseStickerContent(message.content))
+                            ? "max-w-[78%] py-1"
+                            : `max-w-[78%] min-w-28 px-4 py-2.5 rounded-2xl shadow-sm ${
+                                isMine
+                                  ? "bg-sky-600 text-white rounded-br-none"
+                                  : "bg-[#253341] text-gray-100 rounded-bl-none border border-[#38444d]"
+                              }`
+                        }
                       >
                         {message.deletedForAll ? (
                           <p className="italic text-xs opacity-75 flex items-center gap-1.5">
@@ -1399,7 +1581,7 @@ export default function Chat() {
                                       src={sticker.src}
                                       alt={sticker.label}
                                       title={sticker.label}
-                                      className="w-28 h-28 object-contain select-none"
+                                      className="w-36 h-36 sm:w-40 sm:h-40 object-contain select-none drop-shadow-md"
                                     />
                                   );
                                 }
@@ -1634,25 +1816,126 @@ export default function Chat() {
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
-                    {CHAT_STICKERS.map((sticker) => (
+                  <div className="space-y-2.5">
+                    {/* Buscador + Subir sticker */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={stickerSearch}
+                        onChange={(e) => setStickerSearch(e.target.value)}
+                        placeholder="Buscar sticker..."
+                        className="flex-1 min-w-36 bg-[#253341] border border-[#38444d] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-400 outline-none focus:border-sky-500"
+                      />
+                      <input
+                        type="text"
+                        value={newStickerName}
+                        onChange={(e) => setNewStickerName(e.target.value)}
+                        placeholder="Nombre nuevo sticker (opcional)"
+                        maxLength={24}
+                        className="w-44 bg-[#253341] border border-[#38444d] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-400 outline-none focus:border-sky-500"
+                      />
+                      <input
+                        ref={stickerUploadInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadCustomSticker}
+                        className="hidden"
+                      />
                       <button
-                        key={sticker.id}
                         type="button"
-                        onClick={() => handleSendSticker(sticker)}
-                        title={`Enviar sticker ${sticker.label}`}
-                        className="p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                        onClick={() => stickerUploadInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shrink-0"
                       >
-                        <img
-                          src={sticker.src}
-                          alt={sticker.label}
-                          className="w-12 h-12 object-contain"
-                        />
-                        <span className="text-[10px] text-gray-300 truncate w-full text-center">
-                          {sticker.label}
-                        </span>
+                        + Guardar sticker
                       </button>
-                    ))}
+                    </div>
+
+                    {/* Packs */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      {["Todos", "Mis stickers", "Reacciones", "Fiesta"].map(
+                        (packName) => (
+                          <button
+                            key={packName}
+                            type="button"
+                            onClick={() => setStickerPack(packName)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold shrink-0 transition ${
+                              stickerPack === packName
+                                ? "bg-sky-500/25 border border-sky-400 text-sky-300"
+                                : "bg-[#253341] border border-transparent text-gray-400 hover:text-gray-200"
+                            }`}
+                          >
+                            {packName}
+                          </button>
+                        ),
+                      )}
+                    </div>
+
+                    {/* Cuadrícula de stickers */}
+                    {(() => {
+                      const allStickers = [
+                        ...customStickers,
+                        ...BUILTIN_STICKERS,
+                      ];
+                      const q = stickerSearch.trim().toLowerCase();
+                      const visibleStickers = allStickers.filter((st) => {
+                        const matchPack =
+                          stickerPack === "Todos" || st.pack === stickerPack;
+                        const matchQuery =
+                          !q ||
+                          st.label.toLowerCase().includes(q) ||
+                          st.pack.toLowerCase().includes(q);
+                        return matchPack && matchQuery;
+                      });
+
+                      if (visibleStickers.length === 0) {
+                        return (
+                          <p className="py-6 text-center text-xs text-gray-400">
+                            No hay stickers que coincidan. ¡Puedes subir uno con
+                            "+ Guardar sticker"!
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
+                          {visibleStickers.map((sticker) => (
+                            <div
+                              key={sticker.id}
+                              className="relative group p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                            >
+                              {sticker.custom && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCustomSticker(sticker.id);
+                                  }}
+                                  title="Eliminar este sticker guardado"
+                                  className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleSendSticker(sticker)}
+                                title={`Enviar ${sticker.label}`}
+                                className="w-full flex flex-col items-center gap-1"
+                              >
+                                <img
+                                  src={sticker.src}
+                                  alt={sticker.label}
+                                  className="w-12 h-12 object-contain"
+                                />
+                                <span className="text-[10px] text-gray-300 truncate w-full text-center">
+                                  {sticker.label}
+                                </span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -1710,25 +1993,123 @@ export default function Chat() {
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
-                    {CHAT_STICKERS.map((sticker) => (
+                  <div className="space-y-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={stickerSearch}
+                        onChange={(e) => setStickerSearch(e.target.value)}
+                        placeholder="Buscar sticker..."
+                        className="flex-1 min-w-36 bg-[#253341] border border-[#38444d] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-400 outline-none focus:border-sky-500"
+                      />
+                      <input
+                        type="text"
+                        value={newStickerName}
+                        onChange={(e) => setNewStickerName(e.target.value)}
+                        placeholder="Nombre nuevo sticker (opcional)"
+                        maxLength={24}
+                        className="w-44 bg-[#253341] border border-[#38444d] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-400 outline-none focus:border-sky-500"
+                      />
+                      <input
+                        ref={stickerUploadInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadCustomSticker}
+                        className="hidden"
+                      />
                       <button
-                        key={sticker.id}
                         type="button"
-                        onClick={() => handleSendSticker(sticker)}
-                        title={`Enviar sticker ${sticker.label}`}
-                        className="p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                        onClick={() => stickerUploadInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shrink-0"
                       >
-                        <img
-                          src={sticker.src}
-                          alt={sticker.label}
-                          className="w-12 h-12 object-contain"
-                        />
-                        <span className="text-[10px] text-gray-300 truncate w-full text-center">
-                          {sticker.label}
-                        </span>
+                        + Guardar sticker
                       </button>
-                    ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      {["Todos", "Mis stickers", "Reacciones", "Fiesta"].map(
+                        (packName) => (
+                          <button
+                            key={packName}
+                            type="button"
+                            onClick={() => setStickerPack(packName)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold shrink-0 transition ${
+                              stickerPack === packName
+                                ? "bg-sky-500/25 border border-sky-400 text-sky-300"
+                                : "bg-[#253341] border border-transparent text-gray-400 hover:text-gray-200"
+                            }`}
+                          >
+                            {packName}
+                          </button>
+                        ),
+                      )}
+                    </div>
+
+                    {(() => {
+                      const allStickers: ChatSticker[] = [
+                        ...customStickers,
+                        ...BUILTIN_STICKERS,
+                      ];
+                      const q = stickerSearch.trim().toLowerCase();
+                      const visibleStickers = allStickers.filter((st) => {
+                        const matchPack =
+                          stickerPack === "Todos" || st.pack === stickerPack;
+                        const matchQuery =
+                          !q ||
+                          st.label.toLowerCase().includes(q) ||
+                          st.pack.toLowerCase().includes(q);
+                        return matchPack && matchQuery;
+                      });
+
+                      if (visibleStickers.length === 0) {
+                        return (
+                          <p className="py-6 text-center text-xs text-gray-400">
+                            No hay stickers que coincidan. ¡Puedes subir uno con
+                            "+ Guardar sticker"!
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
+                          {visibleStickers.map((sticker) => (
+                            <div
+                              key={sticker.id}
+                              className="relative group p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                            >
+                              {sticker.custom && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCustomSticker(sticker.id);
+                                  }}
+                                  title="Eliminar este sticker guardado"
+                                  className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleSendSticker(sticker)}
+                                title={`Enviar ${sticker.label}`}
+                                className="w-full flex flex-col items-center gap-1"
+                              >
+                                <img
+                                  src={sticker.src}
+                                  alt={sticker.label}
+                                  className="w-12 h-12 object-contain"
+                                />
+                                <span className="text-[10px] text-gray-300 truncate w-full text-center">
+                                  {sticker.label}
+                                </span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -1786,25 +2167,123 @@ export default function Chat() {
                     ))}
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
-                    {CHAT_STICKERS.map((sticker) => (
+                  <div className="space-y-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={stickerSearch}
+                        onChange={(e) => setStickerSearch(e.target.value)}
+                        placeholder="Buscar sticker..."
+                        className="flex-1 min-w-36 bg-[#253341] border border-[#38444d] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-400 outline-none focus:border-sky-500"
+                      />
+                      <input
+                        type="text"
+                        value={newStickerName}
+                        onChange={(e) => setNewStickerName(e.target.value)}
+                        placeholder="Nombre nuevo sticker (opcional)"
+                        maxLength={24}
+                        className="w-44 bg-[#253341] border border-[#38444d] rounded-full px-3 py-1.5 text-xs text-white placeholder-gray-400 outline-none focus:border-sky-500"
+                      />
+                      <input
+                        ref={stickerUploadInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleUploadCustomSticker}
+                        className="hidden"
+                      />
                       <button
-                        key={sticker.id}
                         type="button"
-                        onClick={() => handleSendSticker(sticker)}
-                        title={`Enviar sticker ${sticker.label}`}
-                        className="p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                        onClick={() => stickerUploadInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shrink-0"
                       >
-                        <img
-                          src={sticker.src}
-                          alt={sticker.label}
-                          className="w-12 h-12 object-contain"
-                        />
-                        <span className="text-[10px] text-gray-300 truncate w-full text-center">
-                          {sticker.label}
-                        </span>
+                        + Guardar sticker
                       </button>
-                    ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      {["Todos", "Mis stickers", "Reacciones", "Fiesta"].map(
+                        (packName) => (
+                          <button
+                            key={packName}
+                            type="button"
+                            onClick={() => setStickerPack(packName)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold shrink-0 transition ${
+                              stickerPack === packName
+                                ? "bg-sky-500/25 border border-sky-400 text-sky-300"
+                                : "bg-[#253341] border border-transparent text-gray-400 hover:text-gray-200"
+                            }`}
+                          >
+                            {packName}
+                          </button>
+                        ),
+                      )}
+                    </div>
+
+                    {(() => {
+                      const allStickers: ChatSticker[] = [
+                        ...customStickers,
+                        ...BUILTIN_STICKERS,
+                      ];
+                      const q = stickerSearch.trim().toLowerCase();
+                      const visibleStickers = allStickers.filter((st) => {
+                        const matchPack =
+                          stickerPack === "Todos" || st.pack === stickerPack;
+                        const matchQuery =
+                          !q ||
+                          st.label.toLowerCase().includes(q) ||
+                          st.pack.toLowerCase().includes(q);
+                        return matchPack && matchQuery;
+                      });
+
+                      if (visibleStickers.length === 0) {
+                        return (
+                          <p className="py-6 text-center text-xs text-gray-400">
+                            No hay stickers que coincidan. ¡Puedes subir uno con
+                            "+ Guardar sticker"!
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 max-h-44 overflow-y-auto pr-1">
+                          {visibleStickers.map((sticker) => (
+                            <div
+                              key={sticker.id}
+                              className="relative group p-1.5 rounded-xl bg-[#253341]/70 hover:bg-[#253341] border border-[#38444d] flex flex-col items-center gap-1 transition"
+                            >
+                              {sticker.custom && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteCustomSticker(sticker.id);
+                                  }}
+                                  title="Eliminar este sticker guardado"
+                                  className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleSendSticker(sticker)}
+                                title={`Enviar ${sticker.label}`}
+                                className="w-full flex flex-col items-center gap-1"
+                              >
+                                <img
+                                  src={sticker.src}
+                                  alt={sticker.label}
+                                  className="w-12 h-12 object-contain"
+                                />
+                                <span className="text-[10px] text-gray-300 truncate w-full text-center">
+                                  {sticker.label}
+                                </span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
