@@ -3,6 +3,7 @@ import type { FormEvent, ChangeEvent } from "react";
 import { useAuthStore } from "../store/authStore";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api/client";
+import { BACKEND_URL } from "../lib/socketUrl";
 import toast from "react-hot-toast";
 import NotificationBell from "../components/NotificationBell";
 import Stories from "../components/Stories";
@@ -109,7 +110,7 @@ const EMPTY_COUNTS: ReactionCounts = {
   ANGRY: 0,
 };
 
-const API_URL = "http://localhost:4000";
+const API_URL = BACKEND_URL;
 const IMAGE_URL = "/images";
 
 const MAX_FILES = 10;

@@ -1,12 +1,12 @@
-
-import { create } from 'zustand';
+import { create } from "zustand";
 
 export interface User {
   id: number;
   name: string;
   role: string;
-  avatarUrl?: string | null;
   bio?: string | null;
+  avatarUrl?: string | null;
+  coverUrl?: string | null;
 }
 
 interface AuthState {
@@ -17,18 +17,18 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: JSON.parse(localStorage.getItem('user') || 'null') as User | null,
-  token: localStorage.getItem('token'),
+  user: JSON.parse(localStorage.getItem("user") || "null") as User | null,
+  token: localStorage.getItem("token"),
 
   login: (user, token) => {
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('token', token);
+    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("token", token);
     set({ user, token });
   },
 
   logout: () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
     set({ user: null, token: null });
   },
 }));

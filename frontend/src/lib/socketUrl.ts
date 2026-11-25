@@ -11,3 +11,5 @@ export const SOCKET_URL =
   (import.meta.env.DEV
     ? "http://localhost:4000"
     : "https://red-social-4zu8.onrender.com");
+
+export const BACKEND_URL = SOCKET_URL;
