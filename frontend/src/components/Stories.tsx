@@ -98,6 +98,8 @@ export default function Stories({ user }: StoriesProps) {
   const [activeStoryIndex, setActiveStoryIndex] = useState<number>(0);
   const [isMuted, setIsMuted] = useState(false);
   const storyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const storyVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const [views, setViews] = useState<StoryView[]>([]);
   const [showViews, setShowViews] = useState(false);
@@ -293,13 +295,48 @@ export default function Stories({ user }: StoriesProps) {
       .catch(console.error);
   }, [activeStory?.id]);
 
+  // Reiniciar pausa al cambiar historia o abrir vistas
+  useEffect(() => {
+    setIsPaused(false);
+  }, [activeStory?.id, activeGroupIndex, showViews]);
+
+  // Sincronizar pausa con música y video
+  useEffect(() => {
+    const audio = storyAudioRef.current;
+    const video = storyVideoRef.current;
+    const shouldPause = Boolean(isPaused || showViews);
+
+    if (audio && activeStory?.musicUrl) {
+      if (shouldPause) {
+        audio.pause();
+      } else if (!isMuted) {
+        audio.play().catch(() => {});
+      }
+    }
+
+    if (video && activeStory?.mediaType === "VIDEO") {
+      if (shouldPause) {
+        video.pause();
+      } else {
+        video.play().catch(() => {});
+      }
+    }
+  }, [
+    isPaused,
+    showViews,
+    isMuted,
+    activeStory?.id,
+    activeStory?.musicUrl,
+    activeStory?.mediaType,
+  ]);
+
   // Auto-avance
   useEffect(() => {
-    if (!activeStory || showViews) return;
+    if (!activeStory || showViews || isPaused) return;
     const duration = activeStory.mediaType === "VIDEO" ? 15000 : 10000;
     const timer = window.setTimeout(() => goNext(), duration);
     return () => window.clearTimeout(timer);
-  }, [activeStoryIndex, activeGroupIndex, showViews]);
+  }, [activeStoryIndex, activeGroupIndex, showViews, isPaused]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -729,7 +766,15 @@ export default function Stories({ user }: StoriesProps) {
       {/* VISOR ESTILO INSTAGRAM */}
       {activeStory && currentGroup && (
         <div className="fixed inset-0 z-90 bg-black/95 flex items-center justify-center">
-          <div className="relative w-full h-full max-w-105 md:h-[90vh] md:rounded-xl overflow-hidden bg-[#101820] flex flex-col">
+          <div
+            onPointerDown={() => {
+              if (!showViews) setIsPaused(true);
+            }}
+            onPointerUp={() => setIsPaused(false)}
+            onPointerLeave={() => setIsPaused(false)}
+            onPointerCancel={() => setIsPaused(false)}
+            className="relative w-full h-full max-w-105 md:h-[90vh] md:rounded-xl overflow-hidden bg-[#101820] flex flex-col select-none"
+          >
             {/* BARRAS DE PROGRESO */}
             <div className="absolute top-3 left-3 right-3 z-20 flex gap-1">
               {currentGroup.map((story, index) => {
@@ -748,6 +793,10 @@ export default function Stories({ user }: StoriesProps) {
                         // @ts-ignore
                         "--duration": isActive ? `${durationMs}ms` : "0ms",
                         animationDuration: isActive ? `${durationMs}ms` : "0ms",
+                        animationPlayState:
+                          isActive && (isPaused || showViews)
+                            ? "paused"
+                            : "running",
                       }}
                     />
                   </div>
@@ -777,9 +826,24 @@ export default function Stories({ user }: StoriesProps) {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsPaused((prev) => !prev);
+                  }}
+                  className="bg-black/40 hover:bg-black/60 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center text-sm"
+                  title={isPaused ? "Reanudar" : "Pausar"}
+                >
+                  {isPaused ? "▶" : "⏸"}
+                </button>
                 {activeStory.musicUrl && (
                   <button
-                    onClick={() => setIsMuted(!isMuted)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMuted(!isMuted);
+                    }}
                     className="bg-black/40 hover:bg-black/60 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center text-sm"
                     title={isMuted ? "Activar sonido" : "Silenciar"}
                   >
@@ -787,7 +851,11 @@ export default function Stories({ user }: StoriesProps) {
                   </button>
                 )}
                 <button
-                  onClick={() => setActiveGroupIndex(null)}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveGroupIndex(null);
+                  }}
                   className="text-white text-3xl font-light pb-2"
                 >
                   ×
@@ -830,6 +898,7 @@ export default function Stories({ user }: StoriesProps) {
                 />
               ) : (
                 <video
+                  ref={storyVideoRef}
                   src={getFileUrl(activeStory.url)}
                   autoPlay
                   muted={Boolean(activeStory.musicUrl) || isMuted}
