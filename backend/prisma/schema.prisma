@@ -266,8 +266,9 @@ model Story {
   url          String
   originalName String
   mimeType     String
-  fileSize     Int
-  mediaType    String
+  fileSize      Int
+  mediaType     String
+  privacy       String     @default("FRIENDS")
 
   // Música de la historia
   musicUrl       String?

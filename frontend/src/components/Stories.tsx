@@ -47,6 +47,7 @@ interface Story {
   expiresAt: string;
   authorId: number;
   author: StoryUser;
+  privacy?: "FRIENDS" | "GLOBAL" | string;
   hasViewed: boolean;
   musicUrl?: string | null;
   musicTitle?: string | null;
@@ -78,6 +79,9 @@ export default function Stories({ user }: StoriesProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
+  const [storyPrivacy, setStoryPrivacy] = useState<"FRIENDS" | "GLOBAL">(
+    "FRIENDS",
+  );
   const [previewUrl, setPreviewUrl] = useState("");
   const [uploading, setUploading] = useState(false);
 
@@ -361,6 +365,7 @@ export default function Stories({ user }: StoriesProps) {
     setShowMusicSearch(false);
     setSelectedFile(null);
     setCaption("");
+    setStoryPrivacy("FRIENDS");
     setSelectedTrack(null);
     setMusicStartTime(0);
     setMusicQuery("");
@@ -741,6 +746,36 @@ export default function Stories({ user }: StoriesProps) {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-2 bg-[#253341] border border-[#38444d] rounded-xl px-3 py-2">
+              <span className="text-xs text-gray-300 font-semibold">
+                Audiencia:
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setStoryPrivacy("FRIENDS")}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                    storyPrivacy === "FRIENDS"
+                      ? "bg-sky-500 text-white"
+                      : "text-gray-300 hover:text-white"
+                  }`}
+                >
+                  👥 Solo amigos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStoryPrivacy("GLOBAL")}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+                    storyPrivacy === "GLOBAL"
+                      ? "bg-emerald-500 text-white"
+                      : "text-gray-300 hover:text-white"
+                  }`}
+                >
+                  🌐 Global
+                </button>
+              </div>
             </div>
 
             <textarea

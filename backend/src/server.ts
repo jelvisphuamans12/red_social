@@ -14,7 +14,7 @@ import postRoutes from "./routes/post.routes";
 import messageRoutes from "./routes/messages.routes";
 import notificationRoutes from "./routes/notifications.routes";
 import storyRoutes from "./routes/stories.routes";
-import friendshipRoutes from "./routes/friendship.routes";
+import friendshipRoutes, { areFriends } from "./routes/friendship.routes";
 // Si creaste password.routes.ts aparte, descomenta la siguiente línea y la de app.use("/api/auth", passwordRoutes):
 // import passwordRoutes from "./routes/password.routes";
 
@@ -155,15 +155,19 @@ io.on("connection", (socket) => {
   // ==========================================
   // INDICADOR DE "ESCRIBIENDO..." EN TIEMPO REAL
   // ==========================================
-  socket.on("chat:typing", (data: { toUserId: number }) => {
+  socket.on("chat:typing", async (data: { toUserId: number }) => {
     if (!data?.toUserId) return;
+    const allowed = await areFriends(userId, Number(data.toUserId));
+    if (!allowed) return;
     io.to(`user:${data.toUserId}`).emit("chat:typing", {
       fromUserId: userId,
     });
   });
 
-  socket.on("chat:stop_typing", (data: { toUserId: number }) => {
+  socket.on("chat:stop_typing", async (data: { toUserId: number }) => {
     if (!data?.toUserId) return;
+    const allowed = await areFriends(userId, Number(data.toUserId));
+    if (!allowed) return;
     io.to(`user:${data.toUserId}`).emit("chat:stop_typing", {
       fromUserId: userId,
     });
@@ -176,13 +180,22 @@ io.on("connection", (socket) => {
   // 1. Iniciar llamada (voz o video)
   socket.on(
     "call:initiate",
-    (data: {
+    async (data: {
       toUserId: number;
       offer: unknown;
       callType: "audio" | "video";
       callerName: string;
       callerAvatar: string | null;
     }) => {
+      const allowed = await areFriends(userId, Number(data.toUserId));
+      if (!allowed) {
+        socket.emit("call:unavailable", {
+          toUserId: data.toUserId,
+          reason: "Solo puedes llamar a amigos que hayan aceptado tu solicitud",
+        });
+        return;
+      }
+
       const targetRoom = `user:${data.toUserId}`;
       const roomSockets = io.sockets.adapter.rooms.get(targetRoom);
 

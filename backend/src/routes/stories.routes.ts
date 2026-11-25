@@ -139,6 +139,15 @@ router.post(
           ? Number(req.body.musicStartTime) || 0
           : null;
 
+      const rawPrivacy =
+        typeof req.body.privacy === "string"
+          ? req.body.privacy.trim().toUpperCase()
+          : "FRIENDS";
+      const privacy =
+        rawPrivacy === "GLOBAL" || rawPrivacy === "PUBLIC"
+          ? "GLOBAL"
+          : "FRIENDS";
+
       const story = await prisma.story.create({
         data: {
           caption: caption || null,
@@ -147,6 +156,7 @@ router.post(
           mimeType: file.mimetype,
           fileSize: file.size,
           mediaType: getMediaType(file.mimetype),
+          privacy,
           musicUrl,
           musicTitle,
           musicArtist,

@@ -52,7 +52,7 @@ function normalizeAnswer(answer: string): string {
   return answer.trim().toLowerCase();
 }
 
-async function createSingleUseResetToken(userId: string): Promise<string> {
+async function createSingleUseResetToken(userId: number): Promise<string> {
   const rawToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = hashResetToken(rawToken);
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutos

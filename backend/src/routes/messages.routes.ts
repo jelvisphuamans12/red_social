@@ -7,6 +7,7 @@ import path from "path";
 
 import { requireAuth, AuthRequest } from "../middlewares/auth.middleware";
 import { upload } from "../config/upload";
+import { areFriends, getAcceptedFriendIds } from "./friendship.routes";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -155,10 +156,16 @@ const MESSAGE_INCLUDE = {
 router.get("/users", async (req: AuthRequest, res: Response) => {
   try {
     const currentUserId = req.user!.id;
+    const acceptedFriendIds = await getAcceptedFriendIds(currentUserId);
+
+    if (acceptedFriendIds.length === 0) {
+      res.json([]);
+      return;
+    }
 
     const users = await prisma.user.findMany({
       where: {
-        id: { not: currentUserId },
+        id: { in: acceptedFriendIds, not: currentUserId },
         isBanned: false,
       },
       select: {
@@ -295,9 +302,22 @@ router.post("/share-post", async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    const acceptedFriendIds = new Set(await getAcceptedFriendIds(senderId));
+    const friendRecipientIds = recipientIds.filter((id) =>
+      acceptedFriendIds.has(id),
+    );
+
+    if (friendRecipientIds.length === 0) {
+      res.status(403).json({
+        error:
+          "Solo puedes enviar publicaciones por mensaje a amigos que hayan aceptado tu solicitud",
+      });
+      return;
+    }
+
     const validRecipients = await prisma.user.findMany({
       where: {
-        id: { in: recipientIds },
+        id: { in: friendRecipientIds },
         isBanned: false,
       },
       select: { id: true },
@@ -307,7 +327,7 @@ router.post("/share-post", async (req: AuthRequest, res: Response) => {
 
     if (validIds.length === 0) {
       res.status(404).json({
-        error: "Ninguno de los destinatarios está disponible",
+        error: "Ninguno de los amigos seleccionados está disponible",
       });
       return;
     }
@@ -366,6 +386,14 @@ router.get("/:userId", async (req: AuthRequest, res: Response) => {
     if (otherUserId === currentUserId) {
       res.status(400).json({
         error: "No puedes conversar contigo mismo",
+      });
+      return;
+    }
+
+    const canChat = await areFriends(currentUserId, otherUserId);
+    if (!canChat) {
+      res.status(403).json({
+        error: "Solo puedes chatear con amigos que hayan aceptado tu solicitud",
       });
       return;
     }
@@ -740,6 +768,16 @@ router.post(
         deleteUploadedFiles(files);
         res.status(404).json({
           error: "Usuario no disponible",
+        });
+        return;
+      }
+
+      const canChat = await areFriends(currentUserId, receiverId);
+      if (!canChat) {
+        deleteUploadedFiles(files);
+        res.status(403).json({
+          error:
+            "Solo puedes enviar mensajes a amigos que hayan aceptado tu solicitud",
         });
         return;
       }

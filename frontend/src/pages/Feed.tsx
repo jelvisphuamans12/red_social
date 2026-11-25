@@ -174,6 +174,9 @@ export default function Feed() {
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [content, setContent] = useState("");
+  const [postPrivacy, setPostPrivacy] = useState<"FRIENDS" | "GLOBAL">(
+    "FRIENDS",
+  );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [isPosting, setIsPosting] = useState(false);
@@ -327,8 +330,42 @@ export default function Feed() {
     if (shareUsers.length === 0) {
       setIsLoadingShareUsers(true);
       try {
-        const res = await api.get("/messages/users");
-        setShareUsers(res.data || []);
+        const [usersRes, friendsRes] = await Promise.all([
+          api.get("/messages/users").catch(() => ({ data: [] })),
+          api.get("/friends").catch(() => ({ data: null })),
+        ]);
+        const rawUsers: ShareRecipient[] = Array.isArray(usersRes.data)
+          ? usersRes.data
+          : [];
+        const friendsPayload = friendsRes.data;
+        const acceptedIds = new Set<number>();
+        const listCandidates = Array.isArray(friendsPayload)
+          ? friendsPayload
+          : Array.isArray(friendsPayload?.friends)
+            ? friendsPayload.friends
+            : Array.isArray(friendsPayload?.accepted)
+              ? friendsPayload.accepted
+              : [];
+
+        for (const item of listCandidates) {
+          if (typeof item === "number") {
+            acceptedIds.add(item);
+          } else if (item?.id && (!item.status || item.status === "ACCEPTED")) {
+            acceptedIds.add(Number(item.id));
+          } else if (
+            item?.friend?.id &&
+            (!item.status || item.status === "ACCEPTED")
+          ) {
+            acceptedIds.add(Number(item.friend.id));
+          }
+        }
+
+        const filteredRecipients =
+          acceptedIds.size > 0
+            ? rawUsers.filter((u) => acceptedIds.has(u.id))
+            : rawUsers;
+
+        setShareUsers(filteredRecipients);
       } catch (error) {
         console.error("Error al cargar usuarios para compartir:", error);
         toast.error("No se pudo cargar la lista de personas");
@@ -500,6 +537,7 @@ export default function Feed() {
 
     const formData = new FormData();
     formData.append("content", content);
+    formData.append("privacy", postPrivacy);
 
     selectedFiles.forEach((file) => {
       formData.append("files", file);
@@ -509,6 +547,7 @@ export default function Feed() {
       await api.post("/posts", formData);
 
       setContent("");
+      setPostPrivacy("FRIENDS");
       setSelectedFiles([]);
 
       const fileInput = document.getElementById(
@@ -1614,6 +1653,31 @@ export default function Feed() {
                           />
                         </label>
 
+                        <div className="flex items-center gap-1.5 bg-[#253341] border border-[#38444d] rounded-full p-1 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setPostPrivacy("FRIENDS")}
+                            className={`px-3 py-1 rounded-full font-semibold transition ${
+                              postPrivacy === "FRIENDS"
+                                ? "bg-sky-500 text-white"
+                                : "text-gray-300 hover:text-white"
+                            }`}
+                          >
+                            👥 Solo amigos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPostPrivacy("GLOBAL")}
+                            className={`px-3 py-1 rounded-full font-semibold transition ${
+                              postPrivacy === "GLOBAL"
+                                ? "bg-emerald-500 text-white"
+                                : "text-gray-300 hover:text-white"
+                            }`}
+                          >
+                            🌐 Global
+                          </button>
+                        </div>
+
                         <span className="text-xs text-gray-500">
                           {selectedFiles.length}/{MAX_FILES} archivos
                         </span>
@@ -1669,12 +1733,26 @@ export default function Feed() {
                               )}
                             </div>
 
-                            <p className="text-xs text-gray-400">
-                              {new Date(post.createdAt).toLocaleString("es-PE")}
+                            <p className="text-xs text-gray-400 flex items-center gap-1.5 flex-wrap">
+                              <span>
+                                {new Date(post.createdAt).toLocaleString(
+                                  "es-PE",
+                                )}
+                              </span>
+                              <span>·</span>
+                              <span
+                                className={`font-semibold ${
+                                  post.privacy === "GLOBAL"
+                                    ? "text-emerald-400"
+                                    : "text-sky-400"
+                                }`}
+                              >
+                                {post.privacy === "GLOBAL"
+                                  ? "🌐 Global"
+                                  : "👥 Solo amigos"}
+                              </span>
                               {post.isEdited && (
-                                <span className="ml-2 text-gray-500">
-                                  · Editado
-                                </span>
+                                <span className="text-gray-500">· Editado</span>
                               )}
                             </p>
                           </div>
@@ -1968,11 +2046,12 @@ export default function Feed() {
                       <div className="text-5xl mb-4">📝</div>
 
                       <p className="font-bold text-lg">
-                        Todavía no hay publicaciones
+                        No hay publicaciones para mostrar
                       </p>
 
                       <p className="text-sm mt-2">
-                        ¡Sé el primero en compartir algo!
+                        Agrega amigos con solicitud aceptada o publica algo en
+                        modo Global o Solo amigos.
                       </p>
                     </div>
                   )}
@@ -2251,8 +2330,8 @@ export default function Feed() {
                     onChange={(e) => setSharePrivacy(e.target.value)}
                     className="bg-[#253341] border border-[#38444d] rounded-full px-3 py-1 text-xs text-gray-200 outline-none"
                   >
-                    <option value="FRIENDS">👥 Amigos</option>
-                    <option value="PUBLIC">🌎 Público</option>
+                    <option value="FRIENDS">👥 Solo amigos</option>
+                    <option value="GLOBAL">🌐 Global</option>
                   </select>
                 </div>
 

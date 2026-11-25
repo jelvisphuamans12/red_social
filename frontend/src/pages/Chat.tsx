@@ -478,8 +478,18 @@ export default function Chat() {
           });
         }
       })
-      .catch(() => {
-        if (!cancelled) toast.error("Error al cargar la conversación");
+      .catch((err: any) => {
+        if (!cancelled) {
+          if (err?.response?.status === 403) {
+            setSelectedUser(null);
+            toast.error(
+              err.response?.data?.error ||
+                "Solo puedes chatear con amigos que hayan aceptado tu solicitud",
+            );
+          } else {
+            toast.error("Error al cargar la conversación");
+          }
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -658,14 +668,19 @@ export default function Chat() {
             : [...current, newMessage],
         );
       }
-    } catch {
+    } catch (err: any) {
       setContent((current) => current || messageContent);
       setSelectedFiles((current) =>
         current.length === 0 ? filesToSend : current,
       );
       setReplyingTo((current) => current || replyTarget);
       setIsViewOnce(viewOnceFlag);
-      toast.error("No se pudo enviar el mensaje");
+      toast.error(
+        err?.response?.data?.error ||
+          (err?.response?.status === 403
+            ? "Solo puedes chatear con amigos que hayan aceptado tu solicitud"
+            : "No se pudo enviar el mensaje"),
+      );
     } finally {
       setSending(false);
     }
@@ -1493,7 +1508,8 @@ export default function Chat() {
             <span className="text-6xl mb-4">💬</span>
             <h2 className="text-xl font-bold text-white">Tus mensajes</h2>
             <p className="text-center px-4 text-sm mt-1">
-              Selecciona una persona a la izquierda para comenzar a conversar.
+              Selecciona un amigo con solicitud aceptada a la izquierda para
+              comenzar a conversar.
             </p>
           </div>
         )}
