@@ -17,6 +17,8 @@ model User {
   bio          String?
   avatarUrl    String?
   coverUrl     String?
+  securityQuestion   String?
+  securityAnswerHash String?
   isBanned     Boolean  @default(false)
   createdAt    DateTime @default(now())
 
