@@ -249,9 +249,14 @@ router.post("/share-post", async (req: AuthRequest, res: Response) => {
     const content =
       typeof req.body.content === "string" ? req.body.content.trim() : "";
 
-    if (content.length > 5000) {
+    const isStickerPayload = content.startsWith("[sticker:");
+    const maxContentLength = isStickerPayload ? 300_000 : 5000;
+
+    if (content.length > maxContentLength) {
       res.status(400).json({
-        error: "El mensaje no puede superar los 5000 caracteres",
+        error: isStickerPayload
+          ? "El sticker es demasiado pesado"
+          : "El mensaje no puede superar los 5000 caracteres",
       });
       return;
     }
